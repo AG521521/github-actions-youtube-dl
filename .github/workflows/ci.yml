@@ -1,25 +1,36 @@
-name: ci
+name: Download YouTube Videos
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:   # 允许手动触发
 
 jobs:
-  build:
+  download:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-      
     steps:
-      - name: Clone repository
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: download
+      - name: Install yt-dlp
         run: |
-          git config --local user.email "justjavac@gmail.com"
-          git config --local user.name "迷渡"
-          git remote set-url origin https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
-          git pull --rebase
-          ./bin/youtube-dl --config-location config.txt
-          git add .
-          git commit -m "download youtube video"
-          git push
+          sudo apt update
+          sudo apt install -y python3-pip
+          pip3 install --upgrade yt-dlp
+
+      - name: Download videos from playlist.txt
+        run: |
+          mkdir -p downloads
+          # 跳过空行，逐条下载
+          while IFS= read -r url; do
+            if [[ -n "$url" ]]; then
+              echo "Downloading: $url"
+              yt-dlp -o "downloads/%(title)s.%(ext)s" --no-playlist --no-check-certificate "$url"
+            fi
+          done < playlist.txt
+
+      - name: Upload downloaded videos as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: videos
+          path: downloads/
